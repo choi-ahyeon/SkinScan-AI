@@ -17,3 +17,4 @@ ipython==8.24.0
 jupyter_client==8.6.3
 jupyter_core==5.7.2
 matplotlib-inline==0.1.7
+huggingface_hub==0.23.4
