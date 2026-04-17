@@ -95,7 +95,7 @@ def load_models():
     ]:
         path = os.path.join(MODEL_DIR, fname)
         if os.path.exists(path):
-            models[name] = load_model(path)
+            models[name] = load_model(path, compile=False)
     return models
 
 def preprocess_image(uploaded_file):
