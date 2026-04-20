@@ -3,11 +3,12 @@ import numpy as np
 import pandas as pd
 import cv2
 import os
+os.environ["TF_USE_LEGACY_KERAS"] = "1"
 import tensorflow as tf
 import matplotlib.pyplot as plt
 plt.rcParams['font.family'] = 'Malgun Gothic'
 plt.rcParams['axes.unicode_minus'] = False
-from tensorflow.keras.models import load_model
+import tf_keras
 from PIL import Image
 from huggingface_hub import hf_hub_download
 
@@ -95,7 +96,7 @@ def load_models():
     ]:
         path = os.path.join(MODEL_DIR, fname)
         if os.path.exists(path):
-            models[name] = load_model(path, compile=False)
+            models[name] = tf_keras.models.load_model(path, compile=False)
     return models
 
 def preprocess_image(uploaded_file):
