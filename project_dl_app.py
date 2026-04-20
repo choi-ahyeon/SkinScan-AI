@@ -1,9 +1,10 @@
+import os
+os.environ["TF_USE_LEGACY_KERAS"] = "1"
+
 import streamlit as st
 import numpy as np
 import pandas as pd
 import cv2
-import os
-os.environ["TF_USE_LEGACY_KERAS"] = "1"
 import tensorflow as tf
 import matplotlib.pyplot as plt
 plt.rcParams['font.family'] = 'Malgun Gothic'
@@ -109,12 +110,12 @@ def preprocess_image(uploaded_file):
 def compute_gradcam(model, img_array, class_idx):
     last_conv_name = None
     for layer in model.layers:
-        if isinstance(layer, tf.keras.layers.Conv2D):
+        if isinstance(layer, tf_keras.layers.Conv2D):
             last_conv_name = layer.name
     if last_conv_name is None:
         return None
 
-    inp = tf.keras.Input(shape=(IMG_SIZE, IMG_SIZE, 3))
+    inp = tf_keras.Input(shape=(IMG_SIZE, IMG_SIZE, 3))
     x = inp
     conv_out = None
     for layer in model.layers:
@@ -122,7 +123,7 @@ def compute_gradcam(model, img_array, class_idx):
         if layer.name == last_conv_name:
             conv_out = x
 
-    grad_model = tf.keras.Model(inputs=inp, outputs=[conv_out, x])
+    grad_model = tf_keras.Model(inputs=inp, outputs=[conv_out, x])
     img_tensor = tf.cast(img_array[np.newaxis, ...], tf.float32)
     with tf.GradientTape() as tape:
         conv_outputs, predictions = grad_model(img_tensor)
