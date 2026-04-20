@@ -97,3 +97,10 @@ def load_models():
         ('MobileNetV2',   'project_dl_model_mobilenetv2.h5')
     ]:
         path = os.path.join(MODEL_DIR, fname)
+        if os.path.exists(path):
+            try:
+                models[name] = tf_keras.models.load_model(path, compile=False)
+                st.write(f'✅ {name} 로드 완료')
+            except Exception as e:
+                st.error(f'❌ {name} 로드 실패: {e}')
+    return models
