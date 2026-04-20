@@ -1,3 +1,4 @@
+streamlit>=1.35.0
 tensorflow-cpu==2.13.0
 tf-keras==2.13.0
 numpy==1.24.3
@@ -8,4 +9,3 @@ opencv-python-headless==4.10.0.84
 pillow==10.4.0
 tf-keras-vis==0.8.7
 huggingface_hub==0.23.4
-streamlit>=1.35.0
