@@ -18,6 +18,7 @@ BASE_DIR   = os.path.dirname(os.path.abspath(__file__))
 MODEL_DIR  = os.path.join(BASE_DIR, 'project_dl_model')
 REPORT_DIR = os.path.join(BASE_DIR, 'project_dl_report')
 
+@st.cache_resource
 def download_models():
     os.makedirs(MODEL_DIR, exist_ok=True)
     files = [
@@ -35,7 +36,8 @@ def download_models():
                 local_dir=MODEL_DIR
             )
 
-download_models()
+with st.spinner('모델 다운로드 중... 잠시만 기다려주세요 ☕'):
+    download_models()
 
 st.set_page_config(
     page_title='스킨스캔',
