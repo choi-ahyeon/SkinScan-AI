@@ -3,6 +3,12 @@ os.environ["TF_USE_LEGACY_KERAS"] = "1"
 os.environ["KERAS_BACKEND"] = "tensorflow"
 
 import streamlit as st
+
+st.set_page_config(
+    page_title='스킨스캔',
+    layout="wide"
+)
+
 import numpy as np
 import pandas as pd
 import cv2
@@ -38,11 +44,6 @@ def download_models():
 
 with st.spinner('모델 다운로드 중... 잠시만 기다려주세요 ☕'):
     download_models()
-
-st.set_page_config(
-    page_title='스킨스캔',
-    layout="wide"
-)
 
 st.markdown("""
 <style>
