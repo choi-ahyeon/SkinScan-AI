@@ -1,12 +1,13 @@
-streamlit==1.56.0
+streamlit==1.43.0
 tensorflow==2.15.1
+keras==2.15.0
 numpy==1.26.4
 pandas==2.2.2
 matplotlib==3.8.4
 scikit-learn==1.5.2
 opencv-python-headless==4.10.0.84
 pillow==10.4.0
-protobuf==4.25.3
+protobuf==3.20.3
 wrapt==1.14.1
 h5py==3.10.0
 grpcio==1.62.2
