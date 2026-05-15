@@ -1,6 +1,4 @@
 import os
-os.environ["TF_USE_LEGACY_KERAS"] = "1"
-os.environ["KERAS_BACKEND"] = "tensorflow"
 
 import streamlit as st
 
@@ -10,11 +8,12 @@ st.set_page_config(
 )
 
 import requests
+
 import numpy as np
 import pandas as pd
 import cv2
 import tensorflow as tf
-import tf_keras
+import keras
 import matplotlib.pyplot as plt
 plt.rcParams['font.family'] = 'Malgun Gothic'
 plt.rcParams['axes.unicode_minus'] = False
@@ -56,7 +55,7 @@ def load_models():
         path = os.path.join(MODEL_DIR, fname)
         if os.path.exists(path):
             try:
-                models[name] = tf_keras.models.load_model(path, compile=False)
+                models[name] = keras.models.load_model(path, compile=False)
                 st.write(f'✅ {name} 로드 완료')
             except Exception as e:
                 st.error(f'❌ {name} 로드 실패: {e}')
@@ -158,10 +157,10 @@ with tab1:
                     try:
                         last_conv_name = None
                         for layer in model.layers:
-                            if isinstance(layer, tf_keras.layers.Conv2D):
+                            if isinstance(layer, keras.layers.Conv2D):
                                 last_conv_name = layer.name
                         if last_conv_name:
-                            grad_model = tf_keras.Model(
+                            grad_model = keras.Model(
                                 inputs=model.inputs,
                                 outputs=[model.get_layer(last_conv_name).output, model.output]
                             )
