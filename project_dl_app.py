@@ -49,9 +49,9 @@ def download_models():
 def load_models():
     models = {}
     for name, fname in [
-        ('CNN Baseline',  'project_dl_model_baseline.h5'),
-        ('CNN Optimized', 'project_dl_model_optimized.h5'),
-        ('MobileNetV2',   'project_dl_model_mobilenetv2.h5')
+        ('CNN Baseline',  'project_dl_model_baseline.keras'),
+        ('CNN Optimized', 'project_dl_model_optimized.keras'),
+        ('MobileNetV2',   'project_dl_model_mobilenetv2.keras')
     ]:
         path = os.path.join(MODEL_DIR, fname)
         if os.path.exists(path):
