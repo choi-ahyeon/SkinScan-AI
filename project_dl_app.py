@@ -28,10 +28,10 @@ REPORT_DIR = os.path.join(BASE_DIR, 'project_dl_report')
 def download_models():
     os.makedirs(MODEL_DIR, exist_ok=True)
     files = [
-        'project_dl_model_baseline.h5',
-        'project_dl_model_optimized.h5',
-        'project_dl_model_optimized_2.h5',
-        'project_dl_model_mobilenetv2.h5'
+        'project_dl_model_baseline.keras',
+        'project_dl_model_optimized.keras',
+        'project_dl_model_optimized_2.keras',
+        'project_dl_model_mobilenetv2.keras'
     ]
     for fname in files:
         path = os.path.join(MODEL_DIR, fname)
