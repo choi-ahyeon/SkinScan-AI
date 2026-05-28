@@ -18,14 +18,15 @@ import matplotlib.pyplot as plt
 import matplotlib.font_manager as fm
 import urllib.request
 
-font_path = '/tmp/NanumGothic.ttf'
-if not os.path.exists(font_path):
-    urllib.request.urlretrieve(
-        'https://github.com/googlefonts/nanum/raw/main/fonts/ttf/NanumGothic-Regular.ttf',
-        font_path
-    )
-fm.fontManager.addfont(font_path)
-plt.rcParams['font.family'] = 'NanumGothic'
+try:
+    font_path = '/tmp/NanumGothic.ttf'
+    if not os.path.exists(font_path):
+        urllib.request.urlretrieve(
+            'https://github.com/googlefonts/nanum/raw/main/fonts/ttf/NanumGothic-Regular.ttf',
+            font_path
+        )
+    fm.fontManager.addfont(font_path)
+    plt.rcParams['font.family'] = 'NanumGothic'
 except Exception:
     pass
 plt.rcParams['axes.unicode_minus'] = False
