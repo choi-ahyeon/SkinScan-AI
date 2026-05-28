@@ -118,39 +118,32 @@ if not models:
 
 
 def generate_gradcam(model, img_normalized, pred_idx):
-    """
-    Keras 3 호환 Grad-CAM.
-    load_models()에서 이미 build된 모델을 받으므로 레이어 output이 초기화된 상태.
-    """
-    # 마지막 Conv2D 레이어 찾기
     last_conv_layer = None
     for layer in model.layers:
         if isinstance(layer, keras.layers.Conv2D):
             last_conv_layer = layer
-
     if last_conv_layer is None:
         return None
 
-    # Functional 서브모델 생성
-    grad_model = keras.Model(
-        inputs=model.inputs,
-        outputs=[last_conv_layer.output, model.output]
-    )
-
     img_tensor = tf.cast(img_normalized[np.newaxis, ...], tf.float32)
+    img_tensor = tf.Variable(img_tensor)
 
     with tf.GradientTape() as tape:
-        tape.watch(img_tensor)
-        conv_outputs, predictions = grad_model(img_tensor, training=False)
-        tape.watch(conv_outputs)
-        loss = predictions[:, pred_idx]
+        x = img_tensor
+        conv_out = None
+        for layer in model.layers:
+            x = layer(x)
+            if layer.name == last_conv_layer.name:
+                conv_out = x
+                tape.watch(conv_out)
+        loss = x[:, pred_idx]
 
-    grads = tape.gradient(loss, conv_outputs)
-    if grads is None:
+    grads = tape.gradient(loss, conv_out)
+    if grads is None or conv_out is None:
         return None
 
     pooled_grads = tf.reduce_mean(grads, axis=(0, 1, 2))
-    heatmap = conv_outputs[0] @ pooled_grads[..., tf.newaxis]
+    heatmap = conv_out[0] @ pooled_grads[..., tf.newaxis]
     heatmap = tf.squeeze(heatmap).numpy()
     heatmap = np.maximum(heatmap, 0)
     heatmap = heatmap / (heatmap.max() + 1e-8)
