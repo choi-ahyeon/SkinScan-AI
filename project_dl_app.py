@@ -1,5 +1,4 @@
 import os
-
 import streamlit as st
 
 st.set_page_config(
@@ -8,7 +7,6 @@ st.set_page_config(
 )
 
 import requests
-
 import numpy as np
 import pandas as pd
 import cv2
@@ -16,24 +14,10 @@ import tensorflow as tf
 import keras
 import matplotlib.pyplot as plt
 import matplotlib.font_manager as fm
-import urllib.request
-
-try:
-    font_path = '/tmp/NanumGothic.ttf'
-    if not os.path.exists(font_path):
-        urllib.request.urlretrieve(
-            'https://github.com/googlefonts/nanum/raw/main/fonts/ttf/NanumGothic-Regular.ttf',
-            font_path
-        )
-    fm.fontManager.addfont(font_path)
-    fm._load_fontmanager(try_read_cache=False)
-    prop = fm.FontProperties(fname=font_path)
-    plt.rcParams['font.family'] = prop.get_name()
-except Exception:
-    pass
-plt.rcParams['axes.unicode_minus'] = False
-
 from PIL import Image
+
+plt.rcParams['font.family'] = 'NanumGothic'
+plt.rcParams['axes.unicode_minus'] = False
 
 BASE_DIR   = os.path.dirname(os.path.abspath(__file__))
 MODEL_DIR  = os.path.join(BASE_DIR, 'project_dl_model')
@@ -71,7 +55,11 @@ def load_models():
         path = os.path.join(MODEL_DIR, fname)
         if os.path.exists(path):
             try:
-                models[name] = keras.models.load_model(path, compile=False)
+                m = keras.models.load_model(path, compile=False)
+                # 캐시 시점에 한 번 build해서 레이어 output 초기화
+                dummy = np.zeros((1, 96, 96, 3), dtype='float32')
+                m(dummy, training=False)
+                models[name] = m
                 st.write(f'✅ {name} 로드 완료')
             except Exception as e:
                 st.error(f'❌ {name} 로드 실패: {e}')
@@ -94,7 +82,7 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 IMG_SIZE = 96
-CLASS_NAMES = ['nv', 'mel', 'bkl', 'bcc', 'akiec', 'vasc', 'df']
+CLASS_NAMES    = ['nv', 'mel', 'bkl', 'bcc', 'akiec', 'vasc', 'df']
 CLASS_NAMES_KR = ['멜라닌세포 모반', '흑색종', '검버섯', '기저세포 암종', '광선각화증', '혈관 병변', '피부섬유종']
 CLASS_FULLNAMES = {
     'nv':    '멜라닌세포 모반 (Melanocytic Nevi)',
@@ -105,7 +93,6 @@ CLASS_FULLNAMES = {
     'vasc':  '혈관 병변 (Vascular Lesions)',
     'df':    '피부섬유종 (Dermatofibroma)'
 }
-
 CLASS_INFO = {
     'nv':    '멜라닌세포 모반은 점세포가 피부 내에 증식한 양성 종양(점)입니다. 대부분 양성이지만 크기가 갑자기 커지거나 모양이 불규칙해지면 전문의 진단을 권장합니다.',
     'mel':   '흑색종은 멜라닌 세포에서 발생하는 피부암으로 악성도가 높습니다. 조기 발견 시 치료 예후가 좋으나 전이가 빠르므로 즉시 전문의 진단이 필요합니다.',
@@ -115,20 +102,60 @@ CLASS_INFO = {
     'vasc':  '혈관 병변은 혈관의 비정상적인 증식으로 생기는 양성 병변입니다. 대부분 악성 변화 가능성이 낮으나 크기가 커지면 전문의 진단을 권장합니다.',
     'df':    '피부섬유종은 피부의 섬유조직이 증식한 양성 종양입니다. 악성 변화 가능성이 매우 낮으며 특별한 치료 없이 경과 관찰하는 경우가 많습니다.',
 }
-
 CLASS_RISK = {
-    'nv':    ('낮음'),
-    'mel':   ('높음'),
-    'bkl':   ('낮음'),
-    'bcc':   ('중간'),
-    'akiec': ('중간'),
-    'vasc':  ('낮음'),
-    'df':    ('낮음')
+    'nv':    '낮음',
+    'mel':   '높음',
+    'bkl':   '낮음',
+    'bcc':   '중간',
+    'akiec': '중간',
+    'vasc':  '낮음',
+    'df':    '낮음'
 }
 
 if not models:
     st.error('모델 파일이 없습니다.')
     st.stop()
+
+
+def generate_gradcam(model, img_normalized, pred_idx):
+    """
+    Keras 3 호환 Grad-CAM.
+    load_models()에서 이미 build된 모델을 받으므로 레이어 output이 초기화된 상태.
+    """
+    # 마지막 Conv2D 레이어 찾기
+    last_conv_layer = None
+    for layer in model.layers:
+        if isinstance(layer, keras.layers.Conv2D):
+            last_conv_layer = layer
+
+    if last_conv_layer is None:
+        return None
+
+    # Functional 서브모델 생성
+    grad_model = keras.Model(
+        inputs=model.inputs,
+        outputs=[last_conv_layer.output, model.output]
+    )
+
+    img_tensor = tf.cast(img_normalized[np.newaxis, ...], tf.float32)
+
+    with tf.GradientTape() as tape:
+        tape.watch(img_tensor)
+        conv_outputs, predictions = grad_model(img_tensor, training=False)
+        tape.watch(conv_outputs)
+        loss = predictions[:, pred_idx]
+
+    grads = tape.gradient(loss, conv_outputs)
+    if grads is None:
+        return None
+
+    pooled_grads = tf.reduce_mean(grads, axis=(0, 1, 2))
+    heatmap = conv_outputs[0] @ pooled_grads[..., tf.newaxis]
+    heatmap = tf.squeeze(heatmap).numpy()
+    heatmap = np.maximum(heatmap, 0)
+    heatmap = heatmap / (heatmap.max() + 1e-8)
+    return heatmap
+
 
 tab1, tab2 = st.tabs(['피부 분석', '모델 성능 비교'])
 
@@ -153,13 +180,13 @@ with tab1:
             pred_idx   = np.argmax(pred)
             pred_class = CLASS_NAMES[pred_idx]
             confidence = pred[pred_idx]
-            risk = CLASS_RISK[pred_class]
+            risk       = CLASS_RISK[pred_class]
 
             st.subheader('결과')
             c1, c2, c3 = st.columns(3)
             c1.metric('예측', CLASS_FULLNAMES[pred_class])
             c2.metric('신뢰도', f'{confidence*100:.1f}%')
-            c3.metric('위험도', f'{risk}')
+            c3.metric('위험도', risk)
             st.progress(float(confidence))
             st.info(CLASS_INFO[pred_class])
             st.divider()
@@ -171,29 +198,11 @@ with tab1:
             if show_gradcam:
                 with img_c2:
                     try:
-                        _ = model(img_normalized[np.newaxis, ...], training=False)
-                        last_conv_name = None
-                        for layer in model.layers:
-                            if isinstance(layer, keras.layers.Conv2D):
-                                last_conv_name = layer.name
-                        if last_conv_name:
-                            grad_model = keras.Model(
-                                inputs=model.inputs,
-                                outputs=[model.get_layer(last_conv_name).output, model.output]
-                            )
-                            img_tensor = tf.cast(img_normalized[np.newaxis, ...], tf.float32)
-                            with tf.GradientTape() as tape:
-                                conv_outputs, predictions = grad_model(img_tensor)
-                                loss = predictions[:, pred_idx]
-                            grads = tape.gradient(loss, conv_outputs)
-                            pooled_grads = tf.reduce_mean(grads, axis=(0, 1, 2))
-                            heatmap = conv_outputs[0] @ pooled_grads[..., tf.newaxis]
-                            heatmap = tf.squeeze(heatmap).numpy()
-                            heatmap = np.maximum(heatmap, 0)
-                            heatmap = heatmap / (heatmap.max() + 1e-8)
+                        heatmap = generate_gradcam(model, img_normalized, pred_idx)
+                        if heatmap is not None:
                             heatmap_resized = cv2.resize(heatmap, (img_array.shape[1], img_array.shape[0]))
-                            heatmap_color = cv2.applyColorMap(np.uint8(255 * heatmap_resized), cv2.COLORMAP_JET)
-                            heatmap_color = cv2.cvtColor(heatmap_color, cv2.COLOR_BGR2RGB)
+                            heatmap_color   = cv2.applyColorMap(np.uint8(255 * heatmap_resized), cv2.COLORMAP_JET)
+                            heatmap_color   = cv2.cvtColor(heatmap_color, cv2.COLOR_BGR2RGB)
                             overlay = cv2.addWeighted(img_array, 0.6, heatmap_color, 0.4, 0)
                             st.image(overlay, caption='Grad-CAM', use_container_width=True)
                         else:
@@ -214,25 +223,25 @@ with tab2:
     st.subheader('모델 학습 결과')
     report_imgs = [
         ('학습 곡선', 'project_dl_report_history.png',
-        '학습이 진행될수록 정확도는 올라가고 손실은 내려가야 정상입니다. 실선은 훈련 데이터, 점선은 검증 데이터이며 두 선의 차이가 크면 과적합을 의심할 수 있습니다.'),
+         '학습이 진행될수록 정확도는 올라가고 손실은 내려가야 정상입니다. 실선은 훈련 데이터, 점선은 검증 데이터이며 두 선의 차이가 크면 과적합을 의심할 수 있습니다.'),
         ('모델 성능 비교', 'project_dl_report_comparison.png',
-        '테스트 데이터로 평가한 최종 정확도입니다. CNN Optimized v2가 63.5%로 가장 높았으며, 과도한 Dropout을 적용한 CNN Optimized는 학습이 제대로 이루어지지 않아 낮은 성능을 보였습니다.'),
+         '테스트 데이터로 평가한 최종 정확도입니다. CNN Optimized v2가 63.5%로 가장 높았으며, 과도한 Dropout을 적용한 CNN Optimized는 학습이 제대로 이루어지지 않아 낮은 성능을 보였습니다.'),
         ('Confusion Matrix - Baseline', 'project_dl_report_cm_cnn_baseline.png',
-        '행은 실제 병변, 열은 모델이 예측한 병변입니다. 대각선 숫자가 클수록 정확하게 맞춘 것이며, 대각선 외 숫자는 잘못 분류된 경우입니다.'),
+         '행은 실제 병변, 열은 모델이 예측한 병변입니다. 대각선 숫자가 클수록 정확하게 맞춘 것이며, 대각선 외 숫자는 잘못 분류된 경우입니다.'),
         ('Confusion Matrix - Optimized', 'project_dl_report_cm_cnn_optimized.png',
-        'Dropout을 모든 레이어에 과도하게 적용한 결과 학습이 제대로 되지 않아 대부분의 병변을 nv(멜라닌세포 모반)로만 예측하는 경향을 보입니다.'),
+         'Dropout을 모든 레이어에 과도하게 적용한 결과 학습이 제대로 되지 않아 대부분의 병변을 nv(멜라닌세포 모반)로만 예측하는 경향을 보입니다.'),
         ('Confusion Matrix - Optimized v2', 'project_dl_report_cm_cnn_optimized_v2.png',
-        'Dropout을 마지막 레이어에만 0.3으로 줄인 결과 전체적으로 균형있게 분류하며 가장 높은 성능을 달성했습니다.'),
+         'Dropout을 마지막 레이어에만 0.3으로 줄인 결과 전체적으로 균형있게 분류하며 가장 높은 성능을 달성했습니다.'),
         ('Confusion Matrix - MobileNetV2', 'project_dl_report_cm_mobilenetv2_ft.png',
-        'ImageNet 기반 사전학습 모델로, 일반 사물 이미지에 최적화되어 있어 피부 병변의 미세한 특징을 충분히 학습하지 못한 것으로 분석됩니다.'),
+         'ImageNet 기반 사전학습 모델로, 일반 사물 이미지에 최적화되어 있어 피부 병변의 미세한 특징을 충분히 학습하지 못한 것으로 분석됩니다.'),
         ('Grad-CAM - Optimized v2', 'project_dl_report_gradcam_optimized_v2.png',
-        '모델이 병변을 판단할 때 실제로 어느 부위를 봤는지 시각화한 결과입니다. 빨간색에 가까울수록 모델이 집중한 부위이며, CNN Optimized v2는 병변 중심부에 집중하는 경향을 보입니다.'),
+         '모델이 병변을 판단할 때 실제로 어느 부위를 봤는지 시각화한 결과입니다. 빨간색에 가까울수록 모델이 집중한 부위이며, CNN Optimized v2는 병변 중심부에 집중하는 경향을 보입니다.'),
         ('Grad-CAM - MobileNetV2', 'project_dl_report_gradcam_mobilenetv2.png',
-        'MobileNetV2는 히트맵이 전체적으로 퍼져있어 병변 부위를 명확하게 인식하지 못한 것을 확인할 수 있습니다.'),
+         'MobileNetV2는 히트맵이 전체적으로 퍼져있어 병변 부위를 명확하게 인식하지 못한 것을 확인할 수 있습니다.'),
         ('클래스 분포', 'project_dl_report_class_dist.png',
-        '전체 이미지의 67%가 nv(멜라닌세포 모반)에 편중되어 있습니다. 이러한 클래스 불균형을 보정하기 위해 class weight를 적용하여 학습했습니다.'),
+         '전체 이미지의 67%가 nv(멜라닌세포 모반)에 편중되어 있습니다. 이러한 클래스 불균형을 보정하기 위해 class weight를 적용하여 학습했습니다.'),
         ('샘플 이미지', 'project_dl_report_samples.png',
-        '각 병변 종류의 실제 이미지 샘플입니다. 병변마다 색상과 형태가 다르며, 일부 병변은 육안으로도 구분이 어려울 만큼 유사한 특징을 가집니다.'),
+         '각 병변 종류의 실제 이미지 샘플입니다. 병변마다 색상과 형태가 다르며, 일부 병변은 육안으로도 구분이 어려울 만큼 유사한 특징을 가집니다.'),
     ]
     for title, fname, desc in report_imgs:
         path = os.path.join(REPORT_DIR, fname)
