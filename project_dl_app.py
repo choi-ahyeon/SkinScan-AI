@@ -15,8 +15,21 @@ import cv2
 import tensorflow as tf
 import keras
 import matplotlib.pyplot as plt
-plt.rcParams['font.family'] = 'Malgun Gothic'
+import matplotlib.font_manager as fm
+import urllib.request
+
+font_path = '/tmp/NanumGothic.ttf'
+if not os.path.exists(font_path):
+    urllib.request.urlretrieve(
+        'https://github.com/googlefonts/nanum/raw/main/fonts/ttf/NanumGothic-Regular.ttf',
+        font_path
+    )
+fm.fontManager.addfont(font_path)
+plt.rcParams['font.family'] = 'NanumGothic'
+except Exception:
+    pass
 plt.rcParams['axes.unicode_minus'] = False
+
 from PIL import Image
 
 BASE_DIR   = os.path.dirname(os.path.abspath(__file__))
@@ -155,6 +168,7 @@ with tab1:
             if show_gradcam:
                 with img_c2:
                     try:
+                        _ = model(img_normalized[np.newaxis, ...], training=False)
                         last_conv_name = None
                         for layer in model.layers:
                             if isinstance(layer, keras.layers.Conv2D):
