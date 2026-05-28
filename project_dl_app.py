@@ -26,7 +26,9 @@ try:
             font_path
         )
     fm.fontManager.addfont(font_path)
-    plt.rcParams['font.family'] = 'NanumGothic'
+    fm._load_fontmanager(try_read_cache=False)
+    prop = fm.FontProperties(fname=font_path)
+    plt.rcParams['font.family'] = prop.get_name()
 except Exception:
     pass
 plt.rcParams['axes.unicode_minus'] = False
